@@ -41,9 +41,9 @@ func main() {
 	host := flag.String("l", "localhost", "address to listen on")
 	port := flag.Int("p", 3128, "port number to listen on")
 	pacurl := flag.String("C", "", "url of proxy auto-config (pac) file")
-	domain := flag.String("d", "", "domain of the proxy account (for NTLM auth)")
-	username := flag.String("u", whoAmI(), "username of the proxy account (for NTLM auth)")
-	printHash := flag.Bool("H", false, "print hashed NTLM credentials for non-interactive use")
+	username := flag.String("u", whoAmI(), "username of the proxy basic auth")
+	password := flag.String("s", "", "domain of the proxy basic auth")
+	
 	version := flag.Bool("version", false, "print version number")
 	flag.Parse()
 
@@ -52,31 +52,11 @@ func main() {
 		os.Exit(0)
 	}
 
-	var src credentialSource
-	if *domain != "" {
-		src = fromTerminal().forUser(*domain, *username)
-	} else if value := os.Getenv("NTLM_CREDENTIALS"); value != "" {
-		src = fromEnvVar(value)
-	} else if keyringSupported {
-		src = fromKeyring()
-	}
 	var a *authenticator
-	if src != nil {
-		var err error
-		a, err = src.getCredentials()
-		if err != nil {
-			log.Printf("Credentials not found, disabling proxy auth: %v", err)
-		}
-	}
-
-	if *printHash {
-		if a == nil {
-			fmt.Println("Please specify a domain (using -d) and username (using -u)")
-			os.Exit(1)
-		}
-		fmt.Printf("# Add this to your ~/.profile (or equivalent) and restart your shell\n")
-		fmt.Printf("NTLM_CREDENTIALS=%q; export NTLM_CREDENTIALS\n", a)
-		os.Exit(0)
+	if username != nil && password != nil {
+		a = &authenticator{username: *username, password: *password}
+	} else {
+		log.Printf("Credentials not provided, disabling proxy auth")
 	}
 
 	errch := make(chan error)
